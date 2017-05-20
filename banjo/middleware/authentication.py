@@ -1,0 +1,2 @@
+class AuthenticationMiddleware:
+    pass
