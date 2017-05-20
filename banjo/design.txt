@@ -1,1 +1,19 @@
 Route=====Request Method=====Middleware=====View
+
+
+    delete put post get
+1    0001 get
+2    0010 post
+3    0011 get post
+4    0100 put
+5    0101 put get
+6    0110 put post
+7    0111 put post get
+8    1000 delete
+9    1001 delete get
+10   1010 delete post
+11   1011 delete post get
+12   1100 delete put
+13   1101 delete put get
+14   1110 delete put post
+15   1111 all

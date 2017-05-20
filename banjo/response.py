@@ -5,15 +5,18 @@ class Response:
     def setCookie(self, name, value, option):
         pass
 
-    def end(self, data, encoding):
-        pass
-
     def json(self, body):
         pass
 
-    def render(self, view, context):
+    def status(self):
         pass
 
-    def send(self, body):
+    def headers(self):
+        pass
+
+    def body(self):
+        pass
+
+    def set_body(self):
         pass
 

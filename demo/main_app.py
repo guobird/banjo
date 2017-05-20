@@ -16,6 +16,6 @@ app.middleware('/', [
 
 app.url('/', main_views.index_view, 'get')
 app.url('/about', main_views.about_view, 'get')
-app.router('/users/', user_module.router, 'all')
+app.router('/users/', user_module.router)
 
 
