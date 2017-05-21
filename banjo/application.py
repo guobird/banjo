@@ -77,4 +77,31 @@ class Application(Router):
         :param unnamed_route_params: an empty list, if match, fill this list
         :return: boolean
         '''
+        path = path.strip()
+        if path[-1] == '/':
+            path = path[:-1]
+        if path[0] == '/':
+            path = path[1:]
+
+        pattern_parts = pattern.split('/')
+        path_parts = path.split('/')
+
+        if pattern_parts[-1] != '*':
+            if len(pattern_parts) != len(path_parts):
+                return False
+        else:
+            pattern_parts = pattern_parts[0:-1]
+            if len(path_parts) < len(pattern_parts):
+                return False
+
+        for index, pattern_part in enumerate(pattern_parts):
+            if not Application.part_match(pattern_part, path_parts[index], named_route_params, unnamed_route_params):
+                named_route_params.clear()
+                unnamed_route_params.clear()
+                return False
+
+        return True
+
+    @staticmethod
+    def part_match(pattern_part, path_part, named_route_params, unnamed_route_params):
         pass
