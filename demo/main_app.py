@@ -1,4 +1,4 @@
-from banjo.application import Application
+from banjo import Application
 from banjo.middleware import BodyParserMiddleware, CookieParserMiddleware, LoggerMiddleware
 from demo import user_module
 from demo import main_views

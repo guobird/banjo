@@ -1,4 +1,4 @@
-from banjo.router import Router
+from banjo import Router
 from . import views
 
 router = Router()

@@ -3,6 +3,8 @@ class Request:
         self.rawHeaders = {}
         self.rawBody = None
         self.locals = {}
+        self.named_route_params = {}
+        self.unnamed_route_params = []
 
     @property
     def app(self):

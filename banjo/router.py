@@ -38,6 +38,10 @@ class Router:
         self._routeMap.addUrl(exactPath, view, methods)
 
 
+# todo: convert base path of a middleware route to regexp that include sub path
+#    eg: if the basepath given by user calling router.middleware(basepath) is '/blog/bird',
+#    then we should convert it to '/blog/bird/*' before saving to _routeMap,
+#    this will ease the work when matching a path
 class RouteMap:
     def __init__(self):
         '''
