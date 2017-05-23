@@ -1,6 +1,6 @@
+def django_render(template):
+    return 'django_render'
 
-def jinja2_render(input):
-    pass
 
-def django_render(input):
-    pass
+def jinja2_render(template):
+    return 'jinja2_render'
