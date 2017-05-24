@@ -209,7 +209,7 @@ class RouteMap:
             if RouteMap.method2int(request.method) | item[1] == 0b0000:
                 continue
             # 2. Test if url path pattern match, also write named_route_params if match
-            match_obj = item[0].match(request.path)
+            match_obj = item[0].fullmatch(request.path)
             if not match_obj:
                 continue
             # 3. Now the path matches, check if it matches a middleware list or a view
@@ -293,13 +293,11 @@ class Application(Router):
                 cur_chained = middleware(cur_chained)
             response = Response(cur_chained(request))
             status = '200 OK'  # HTTP Status
-            headers = [('Content-Type', 'text/plain')]  # HTTP Headers
+            headers = [('Content-Type', 'text/html')]  # HTTP Headers
         else:
             status = '404 Not Found'
             headers = []
-            response = Response()
+            response = Response("Can not find page")
 
-        status = '404 Not Found'
-        headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
         return [bytes(response.body, encoding='utf-8')]

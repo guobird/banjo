@@ -4,6 +4,10 @@ from banjo import Application
 from demo import main_views
 
 
+def index_view(request):
+    return '<h1 style="color: red">Home Page</h1>'
+
+
 app = Application()
 
 '''
@@ -15,6 +19,7 @@ app.middleware('/', [
     CookieParserMiddleware
 ])
 '''
+app.url('/', index_view, 'get')
 app.url('/about', main_views.about_view, 'get')
 app.url('/user', main_views.user_view, 'get')
 
