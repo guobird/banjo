@@ -1,11 +1,12 @@
 from banjo import Application
-from banjo.middleware import BodyParserMiddleware, CookieParserMiddleware, LoggerMiddleware
-from demo import user_module
+#from banjo.middleware import BodyParserMiddleware, CookieParserMiddleware, LoggerMiddleware
+#from demo import user_module
 from demo import main_views
 
 
 app = Application()
 
+'''
 # app level middlewares
 app.middleware('/', [
     LoggerMiddleware,
@@ -13,9 +14,12 @@ app.middleware('/', [
     BodyParserMiddleware.urlencoded(),
     CookieParserMiddleware
 ])
-
-app.url('/', main_views.index_view, 'get')
+'''
 app.url('/about', main_views.about_view, 'get')
-app.router('/users/', user_module.router)
+app.url('/user', main_views.user_view, 'get')
+
+#app.router('/users/', user_module.router)
+
+
 
 

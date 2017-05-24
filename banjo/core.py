@@ -1,6 +1,7 @@
 import re
 import urllib.parse
 
+
 class Request:
     def __init__(self):
         self._headers = {}
@@ -98,6 +99,11 @@ class Request:
 
 
 class Response:
+    def __init__(self, content=''):
+        self._body = content
+        self._headers = {}
+        self._headers['Content-Type'] = 'text/html'
+
     def append(self, value):
         pass
 
@@ -110,14 +116,21 @@ class Response:
     def status(self):
         pass
 
+    @property
     def headers(self):
-        pass
+        return self._headers
 
+    @headers.setter
+    def headers(self, header_dict):
+        self._headers = header_dict
+
+    @property
     def body(self):
-        pass
+        return self._body
 
-    def set_body(self):
-        pass
+    @body.setter
+    def body(self, body_text):
+        self._body = body_text
 
 
 # todo: convert base path of a middleware route to regexp that include sub path
@@ -150,6 +163,9 @@ class RouteMap:
         item = (re.compile(url_pattern), methods_int_repr, view)
         self._map.append(item)
 
+    def __len__(self):
+        return len(self._map)
+
     @staticmethod
     def method2int(method_str):
         result = 0b0000
@@ -158,13 +174,13 @@ class RouteMap:
             methods[index] = method.strip().lower()
 
         if 'get' in methods:
-            result &= 0b0001
+            result |= 0b0001
         if 'post' in methods:
-            result &= 0b0010
+            result |= 0b0010
         if 'put' in methods:
-            result &= 0b0100
+            result |= 0b0100
         if 'delete' in methods:
-            result &= 0b1000
+            result |= 0b1000
         if result==0:
             raise Exception('Wrong request methods specified')
         return result
@@ -172,6 +188,40 @@ class RouteMap:
     def __iter__(self):
         for item in self._map:
             yield item
+
+    def find_match(self, request):
+        '''
+        Write request.param if request match a view item in self._map
+        :param request:
+        :return: If the given path and request method doesn't match a view in self._map, return None;
+                 If matched, return a list of middleware_chain:
+                     [matched_middleware1, matched_middleware2, ..., matched_view]
+        '''
+        matched_middlewares = []
+
+        for item in self._map:
+            '''
+            item[0]: url pattern(compiled regex)
+            item[1]: accepted request methods(int repr)
+            item[2]: middlewares(list)/view
+            '''
+            # 1. Test if request method match
+            if RouteMap.method2int(request.method) | item[1] == 0b0000:
+                continue
+            # 2. Test if url path pattern match, also write named_route_params if match
+            match_obj = item[0].match(request.path)
+            if not match_obj:
+                continue
+            # 3. Now the path matches, check if it matches a middleware list or a view
+            if type(item[2]) is list: # matched a middleware item
+                matched_middlewares.extend(item[2])
+            else: # matched a view item, should stop search
+                matched_middlewares.append(item[2])
+                request.params = match_obj.groups()
+                request.named_params = match_obj.groupdict()
+                return matched_middlewares
+
+        return None
 
 
 class Router:
@@ -211,8 +261,8 @@ class Router:
         subRouter.setBasePath(basePath)
         self._route_map.append_route_map(basePath, subRouter.getRouteMap())
 
-    def url(self, exactPath, view, methods='get'):
-        self._route_map.add_url(exactPath, view, methods)
+    def url(self, path_pattern, view, methods='get'):
+        self._route_map.add_url(path_pattern, view, methods)
 
 
 class Application(Router):
@@ -235,54 +285,21 @@ class Application(Router):
         # fill request query parameters
         request.query = urllib.parse.parse_qs(environ['QUERY_STRING'])
 
-        middleware_chain = self.find_match(request)
+        middleware_chain = self._route_map.find_match(request)
         if middleware_chain is not None:
             middleware_chain.reverse()
             cur_chained = middleware_chain[0]
             for middleware in middleware_chain[1:]:
                 cur_chained = middleware(cur_chained)
-            response = cur_chained(request)
-            status = response.status()  # HTTP Status
-            headers = response.headers()  # HTTP Headers
+            response = Response(cur_chained(request))
+            status = '200 OK'  # HTTP Status
+            headers = [('Content-Type', 'text/plain')]  # HTTP Headers
         else:
             status = '404 Not Found'
             headers = []
             response = Response()
+
+        status = '404 Not Found'
+        headers = [('Content-Type', 'text/plain')]
         start_response(status, headers)
-        return response.body()
-
-    def find_match(self, request):
-        '''
-        Write request.param if request match a view item in self._route_map
-        :param request:
-        :return: If the given path and request method doesn't match a view in the _route_map, return None;
-                 If matched, return a list:
-                     matched_middlewares_and_view: [matched_middleware1, matched_middleware2, ..., matched_view]
-        '''
-        matched_middlewares = []
-
-        for item in self._route_map:
-            '''
-            item[0]: url pattern(compiled regex)
-            item[1]: accepted request methods(int repr)
-            item[2]: middlewares(list)/view
-            '''
-            # 1. Test if request method match
-            if RouteMap.method2int(request.method) & item[1] == 0b0000:
-                continue
-            # 2. Test if url path pattern match, also write named_route_params if match
-            match_obj = item[0].match(request.path)
-            if not match_obj:
-                continue
-            # 3. Now the path matches, check if it matches a middleware list or a view
-            if type(item[2]) is list: # matched a middleware item
-                matched_middlewares.extend(item[2])
-            else: # matched a view item, should stop search
-                matched_middlewares.append(item[2])
-                request.params = match_obj.groups()
-                request.named_params = match_obj.groupdict()
-                return matched_middlewares
-
-        return None
-
-
+        return [bytes(response.body, encoding='utf-8')]

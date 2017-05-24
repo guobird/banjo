@@ -1,7 +1,6 @@
 from wsgiref.validate import validator
 from wsgiref.simple_server import make_server
-# from demo.wsgi import application
-
+from demo.main_app import app
 
 class TempApp:
     def __call__(self, environ, start_response):
@@ -24,7 +23,8 @@ class TempApp:
 
 tempApp = TempApp()
 
-httpd = make_server('', 8000, tempApp)
+
+httpd = make_server('', 8000, app)
 print("Serving HTTP on port 8000...")
 
 # Respond to requests until process is killed
