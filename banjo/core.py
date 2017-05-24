@@ -1,23 +1,44 @@
 import re
-
+import urllib.parse
 
 class Request:
     def __init__(self):
         self._headers = {}
         self._body = None
+        self._path = None
+        self._method = None
         self.locals = {}
-        self.named_route_params = {}
+        self._named_params = {}
+        self._params = []
+        self._query = {}
+        self._app = None
 
     def set_headers(self, header_dict):
         self._headers = header_dict
 
     @property
+    def path(self):
+        return self._path
+
+    @path.setter
+    def path(self, path_info):
+        self._path = path_info
+
+    @property
+    def headers(self):
+        return self._headers
+
+    @headers.setter
+    def headers(self, header_dict):
+        self._headers = header_dict
+
+    @property
     def app(self):
-        pass
+        return self._app
 
     @app.setter
-    def app(self):
-        pass
+    def app(self, application):
+        self._app = application
 
     @property
     def base_url(self):
@@ -44,12 +65,36 @@ class Request:
         pass
 
     @property
+    def query(self):
+        return self._query
+
+    @query.setter
+    def query(self, query_dict):
+        self._query = query_dict
+
+    @property
     def method(self):
-        pass
+        return self._method
 
     @method.setter
-    def method(self):
-        pass
+    def method(self, request_method):
+        self._method = request_method
+
+    @property
+    def params(self):
+        return self._params
+
+    @params.setter
+    def params(self, route_params):
+        self._params = route_params
+
+    @property
+    def named_params(self):
+        return self._named_params
+
+    @named_params.setter
+    def named_params(self, named_route_params):
+        self._named_params = named_route_params
 
 
 class Response:
@@ -77,7 +122,7 @@ class Response:
 
 # todo: convert base path of a middleware route to regexp that include sub path
 #    eg: if the basepath given by user calling router.middleware(basepath) is '/blog/bird',
-#    then we should convert it to '/blog/bird/*' before saving to _routeMap,
+#    then we should convert it to '/blog/bird/*' before saving to _route_map,
 #    this will ease the work when matching a path
 class RouteMap:
     def __init__(self):
@@ -92,17 +137,17 @@ class RouteMap:
         '''
         self._map = []
 
-    def addMiddlewares(self, basePath, middlewares, methods):
+    def add_middlewares(self, base_path, middlewares, methods):
         methods_int_repr = RouteMap.method2int(methods)
-        item = (basePath, methods_int_repr, middlewares, None)
+        item = (re.compile(base_path), methods_int_repr, middlewares)
         self._map.append(item)
 
-    def appendRouteMap(self, basePath, subRouter):
+    def append_route_map(self, basePath, subRouter):
         pass
 
-    def addUrl(self, url, view, methods):
+    def add_url(self, url_pattern, view, methods):
         methods_int_repr = RouteMap.method2int(methods)
-        item = (url, methods_int_repr, None, view)
+        item = (re.compile(url_pattern), methods_int_repr, view)
         self._map.append(item)
 
     @staticmethod
@@ -121,44 +166,53 @@ class RouteMap:
         if 'delete' in methods:
             result &= 0b1000
         if result==0:
-            raise 'Wrong request methods specified'
+            raise Exception('Wrong request methods specified')
         return result
+
+    def __iter__(self):
+        for item in self._map:
+            yield item
 
 
 class Router:
     def __init__(self):
-        self._basePath = None
-        self._routeMap = RouteMap()
+        self._base_path = None
+        self._route_map = RouteMap()
+
+    @property
+    def base_path(self):
+        return self._base_path
 
     # called when calling app.router()
-    # eg. calling app.router('/user', router) will set _basePath to '/user'
-    def setBasePath(self, path):
-        self._basePath = path
-
-    def basePath(self):
-        return self._basePath
+    # eg. calling app.router('/user', router) will set _base_path to '/user'
+    @base_path.setter
+    def base_path(self, path):
+        self._base_path = path
 
     def getSubRouterMap(self, router):
-        return self._routeMap
+        return self._route_map
 
     def chained_middleware(self):
         pass
 
     # add a middleware to route map
-    def middleware(self, basePath, middlewares, methods='all'):
-        if type(middlewares) is Middleware:
-            self._routeMap.addMiddlewares(basePath, (middlewares,), methods)
+    def middleware(self, base_path, middlewares, methods='all'):
+        if callable(middlewares):
+            self._route_map.add_middlewares(base_path, [middlewares, ], methods)
         elif type(middlewares) is list or tuple:
-            self._routeMap.addMiddlewares(basePath, tuple(middlewares), methods)
+            for mid in middlewares:
+                if not callable(mid):
+                    raise Exception('Wrong middleware specified, middleware should be callable.')
+            self._route_map.add_middlewares(base_path, list(middlewares), methods)
         else:
-            raise Exception('Wrong middlewares parameter specified')
+            raise Exception('Wrong middlewares parameter specified.')
 
     def router(self, basePath, subRouter):
         subRouter.setBasePath(basePath)
-        self._routeMap.appendRouteMap(basePath, subRouter.getRouteMap())
+        self._route_map.append_route_map(basePath, subRouter.getRouteMap())
 
     def url(self, exactPath, view, methods='get'):
-        self._routeMap.addUrl(exactPath, view, methods)
+        self._route_map.add_url(exactPath, view, methods)
 
 
 class Application(Router):
@@ -169,14 +223,20 @@ class Application(Router):
         self.locals = {}
 
     def __call__(self, environ, start_response):
-        # todo: fill request according to environ
         request = Request()
+        request.path = environ['PATH_INFO']
+        request.method = environ['REQUEST_METHOD']
 
-        # todo: fill request with query parameters
+        # fill request headers
+        for key in environ:
+            if key.startswith('HTTP_'):
+                request.headers[key[5:]] = environ[key]
 
-        match_result = self.match(environ['PATH_INFO'], environ['REQUEST_METHOD'])
-        if match_result is not None:
-            middleware_chain, request.named_route_params, request.unnamed_route_params = match_result
+        # fill request query parameters
+        request.query = urllib.parse.parse_qs(environ['QUERY_STRING'])
+
+        middleware_chain = self.find_match(request)
+        if middleware_chain is not None:
             middleware_chain.reverse()
             cur_chained = middleware_chain[0]
             for middleware in middleware_chain[1:]:
@@ -191,98 +251,38 @@ class Application(Router):
         start_response(status, headers)
         return response.body()
 
-    # Currently, only router.url() support route parameters(:name), router.middleware() and
-    #     router.router() need to use exact string match with url.
-    # Also not support regular expr url pattern yet.
-    # If the given path and request method doesn't match a view in the _routeMap, return None
-    # if matched, return a list and a dict:
-    #     matched_middlewares_and_view: [matched_middleware1, matched_middleware2, ..., matched_view]
-    #     named_route_params: {named_route_param1: value1, named_route_param2: value2, ...}
-    def match(self, path, method_str):
+    def find_match(self, request):
+        '''
+        Write request.param if request match a view item in self._route_map
+        :param request:
+        :return: If the given path and request method doesn't match a view in the _route_map, return None;
+                 If matched, return a list:
+                     matched_middlewares_and_view: [matched_middleware1, matched_middleware2, ..., matched_view]
+        '''
         matched_middlewares = []
-        named_route_params = {}
 
-        for item in self._routeMap:
+        for item in self._route_map:
             '''
-            item[0]: url pattern
-            item[1]: accepted methods(int repr)
-            item[2]: middlewares(tuple)/view
+            item[0]: url pattern(compiled regex)
+            item[1]: accepted request methods(int repr)
+            item[2]: middlewares(list)/view
             '''
             # 1. Test if request method match
-            if RouteMap.method2int(method_str) & item[1] == 0b0000:
+            if RouteMap.method2int(request.method) & item[1] == 0b0000:
                 continue
             # 2. Test if url path pattern match, also write named_route_params if match
-            if not Application.pattern_match(item[0], path, named_route_params):
+            match_obj = item[0].match(request.path)
+            if not match_obj:
                 continue
             # 3. Now the path matches, check if it matches a middleware list or a view
-            if type(item[2]) is tuple: # matched a middleware item
-                matched_middlewares.extend(list(item[2]))
+            if type(item[2]) is list: # matched a middleware item
+                matched_middlewares.extend(item[2])
             else: # matched a view item, should stop search
                 matched_middlewares.append(item[2])
-                return matched_middlewares, named_route_params
+                request.params = match_obj.groups()
+                request.named_params = match_obj.groupdict()
+                return matched_middlewares
 
         return None
 
-    # todo: support % encoded character
-    @staticmethod
-    def pattern_match(pattern, path, named_route_params):
-        '''
-        :param pattern:
-        :param path:
-        :param named_route_params: an empty dict, if match, fill this dict
-        :return: boolean
-        '''
-        path = path.strip()
-        if path[-1] == '/':
-            path = path[:-1]
-        if path[0] == '/':
-            path = path[1:]
-
-        pattern_segs = pattern.split('/')
-        path_segs = path.split('/')
-
-        if pattern_segs[-1] != '*':
-            if len(pattern_segs) != len(path_segs):
-                return False
-        else:
-            pattern_parts = pattern_segs[0:-1]
-            if len(path_segs) < len(pattern_parts):
-                return False
-
-        for index, pattern_part in enumerate(pattern_segs):
-            if not Application.segment_match(pattern_part, path_segs[index], named_route_params):
-                named_route_params.clear()
-                return False
-
-        return True
-
-    @staticmethod
-    def segment_match(pattern_seg, path_seg, named_route_params):
-        '''
-
-        :param pattern_seg: a path segment, possibly include :name route parameter pattern
-        :param path_seg: path segment of a http request
-        :param named_route_params: a dict possibly with partly filled params, if match, should append this dict
-        :return: False if not match, True if match
-        '''
-        allowed_chars = r'[a-zA-Z0-9_:-]+'
-        assert re.fullmatch(allowed_chars, pattern_seg)
-        assert re.fullmatch(allowed_chars, path_seg)
-
-        pattern_parts = pattern_seg.split('-')
-        path_parts = path_seg.split('-')
-        if len(pattern_parts) != len(path_parts):
-            return False
-
-        route_params = {}
-        PARAM_RE = r':[a-zA-Z0-9_]+'
-        for index, ptnpart in enumerate(pattern_parts):
-            if re.fullmatch(PARAM_RE, ptnpart):
-                route_params[ptnpart[1:]] = path_parts[index]
-            elif ptnpart != path_parts[index]:
-                return False
-            else:
-                continue
-        named_route_params.update(route_params)
-        return True
 
