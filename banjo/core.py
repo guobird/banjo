@@ -13,6 +13,7 @@ class Request:
         self._params = []
         self._query = {}
         self._app = None
+        self._cookie_dict = {}
 
     def set_headers(self, header_dict):
         self._headers = header_dict
@@ -58,12 +59,12 @@ class Request:
         pass
 
     @property
-    def cookies(self):
-        pass
+    def cookie_dict(self):
+        return self._cookie_dict
 
-    @cookies.setter
-    def cookie(self):
-        pass
+    @cookie_dict.setter
+    def cookie_dict(self, new_dict):
+        self._cookie_dict = new_dict
 
     @property
     def query(self):
