@@ -5,7 +5,7 @@ class CookieMiddleware(object):
 
     def __call__(self, request):
         cookie_dict = {}
-        cookie_string_list = request.headers['cookie'].split(';')
+        cookie_string_list = request.environ['HTTP_COOKIE'].split(';')
         for cookie in cookie_string_list:
             sep_pos = cookie.index('=')
             cookie_dict[cookie[0:sep_pos].strip()] = cookie[sep_pos+1:].strip()
